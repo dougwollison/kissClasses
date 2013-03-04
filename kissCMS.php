@@ -8,10 +8,9 @@ require_once('kissMySQL.php');
 
 class kissCMS extends kissMySQL{
   private $allowed_actions;
-	private $objects;
-	private $object_relations;
-	private $object_formats;
-	public $dbh;
+	protected $objects;
+	protected $object_relations;
+	protected $object_formats;
 	
 	public function __construct($user, $pass, $name, $host = 'localhost', $charset = 'utf8', $collate = 'utf8_general_ci'){
 		parent::__construct($user, $pass, $name, $host, $charset, $collate);
