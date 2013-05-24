@@ -169,7 +169,7 @@ class kissCMS extends kissMySQL{
 			}
 		}
 
-		$data = $this->get_col("SELECT meta_value FROM $table WHERE {$type}_id = $oid AND meta_key = %s", $key);
+		$data = $this->get_col("SELECT meta_value FROM $table WHERE {$type}_id = %d AND meta_key = %s", $oid, $key);
 		
 		if(!is_array($data)) return;
 		
@@ -198,18 +198,21 @@ class kissCMS extends kissMySQL{
 		
 		if(!is_null($prev_value)){
 			$this->query("UPDATE $table SET meta_value = %s WHERE {$type}_id = %d AND meta_key = %s AND meta_value = %s", maybe_serialize($value), $oid, $key, $prev_value);
-		}if($this->get_var("SELECT ID FROM $table WHERE {$type}_id = $oid AND meta_key = %s", $key)){
+		}if($this->get_var("SELECT ID FROM $table WHERE {$type}_id = %d AND meta_key = %s", $oid, $key)){
 			$this->query("UPDATE $table SET meta_value = %s WHERE {$type}_id = %d AND meta_key = %s", maybe_serialize($value), $oid, $key);
 		}else{
 			$this->add_meta_data($type, $oid, $key, $value);
 		}
 	}
 
-	public function delete_meta_data($type, $oid, $key){
+	public function delete_meta_data($type, $oid, $key, $value = null){
 		$table = $type.'_meta';
 		if(!$this->table_exists($table)) return;
 		
-		return $this->query("DELETE FROM $table WHERE {$type}_id = $oid AND meta_key = $key");
+		$and = '';
+		if(!is_null($value)) $and = "AND meta_value = %s";
+		
+		return $this->query("DELETE FROM $table WHERE {$type}_id = %d AND meta_key = %s $and", $oid, $key, $value);
 	}
 
 	public function get_object_field($type, $id, $field){
