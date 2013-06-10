@@ -5,11 +5,14 @@ Based off ezSQL, but even ez-er (http://justinvincent.com/ezsql)
 ...Also slightly stripped down; no logging for instance
 */
 
-//Data type constants
+//Data type flags
 define('OBJECT', md5('OBJECT'.time()), true);
 define('OBJECT_K', md5('OBJECT_K'.time()), true);
 define('ARRAY_A', md5('ARRAY_A'.time()), true);
 define('ARRAY_N', md5('ARRAY_N'.time()), true);
+
+//Skip Prepare Flag
+define('NO_PREP', md5('NO_PREP'.time()), true);
 
 class kissMySQL{
   public $ready;
@@ -102,6 +105,11 @@ class kissMySQL{
 
 	private function auto_prepare(&$query = null, array $args = array(), &$output = OBJECT){
 		if(is_null($query)) return;
+		
+		//See if NO_PREP flag is present, return the raw query if so.
+		if(in_array(NO_PREP, $args)){
+			return $query;
+		}
 
 		if(count($args) > 1){
 			array_shift($args); //First arg would be the query
