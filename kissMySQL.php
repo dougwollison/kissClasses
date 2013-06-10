@@ -11,9 +11,6 @@ define('OBJECT_K', md5('OBJECT_K'.time()), true);
 define('ARRAY_A', md5('ARRAY_A'.time()), true);
 define('ARRAY_N', md5('ARRAY_N'.time()), true);
 
-//Skip Prepare Flag
-define('NO_PREP', md5('NO_PREP'.time()), true);
-
 class kissMySQL{
   public $ready;
 	public $last_query;
@@ -105,30 +102,28 @@ class kissMySQL{
 
 	private function auto_prepare(&$query = null, array $args = array(), &$output = OBJECT){
 		if(is_null($query)) return;
-		
-		//See if NO_PREP flag is present, return the raw query if so.
-		if(in_array(NO_PREP, $args)){
-			return $query;
-		}
 
 		if(count($args) > 1){
 			array_shift($args); //First arg would be the query
 
 			//Check if the output type is the first arg, if so, shift it off to $output
-			if(in_array($args[0], array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N)))
+			//Otherwise, Check if the output type is the last arg, if so, pop it off to $output
+			if(in_array($args[0], array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N))){
 				$output = array_shift($args);
-
-			//Check if the output type is the first arg, if so, shift it off to $output
-			if(in_array(end($args), array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N)))
+			}elseif(in_array(end($args), array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N)))
 				$output = array_pop($args);
+			}
 
 			//Check if there's only one argument and that it's an array, if so, make it the arugments array
 			if(count($args) == 1 && is_array($args[0])){
 				$args = $args[0];
 			}
 
-			//Now prepare the query with the arguments
-			$query = $this->prepare($query, $args);
+			//See if there are any arguments to prepare with
+			if(count($args) > 0){
+				//Now prepare the query with the arguments
+				$query = $this->prepare($query, $args);
+			}
 		}
 	}
 
