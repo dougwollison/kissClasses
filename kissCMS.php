@@ -3,16 +3,14 @@
 kissCMS Class
 For building a basic CMS, extends kissMySQL
 */
-
 require_once('kissMySQL.php');
 
 class kissCMS extends kissMySQL{
-  private $allowed_actions;
-	private $objects;
-	private $object_relations;
-	private $object_formats;
-	public $dbh;
-	
+	public $allowed_actions;
+	protected $objects;
+	protected $object_relations;
+	protected $object_formats;
+
 	public function __construct($user, $pass, $name, $host = 'localhost', $charset = 'utf8', $collate = 'utf8_general_ci'){
 		parent::__construct($user, $pass, $name, $host, $charset, $collate);
 	}
@@ -64,13 +62,13 @@ class kissCMS extends kissMySQL{
 	public function get_object($type, $id, $fields = '*', $meta = null){
 		return $this->get_object_by($type, 'ID', $id, $fields, $meta);
 	}
-	
+
 	public function get_object_by($type, $field, $value, $fields = '*', $meta = null){
 		if(is_array($fields)) $fields = implode(',', $fields);
-		
+
 		$f = '%s';
 		if(is_numeric($value)) $f = '%d';
-		
+
 		if(is_null($fields)) $fields = '*';
 
 		$object = $this->get_row("SELECT $fields FROM {$type}s WHERE $field = $f", $value);
@@ -146,15 +144,15 @@ class kissCMS extends kissMySQL{
 		if(is_array($id)) $id = $id['ID'];
 
 		$this->query("DELETE FROM {$object}s WHERE ID = %d", $id);
-		
+
 		if($this->table_exists($type.'_meta')){
 			$this->query("DELETE FROM {$object}_meta WHERE {$object}_id = %d", $id);
 		}
-		
+
 		if($this->table_exists($type.'_relationships')){
 			$this->query("DELETE FROM {$object}_relationships WHERE {$object}_id = %d", $id);
 		}
-		
+
 		if(method_exists($this, 'delete_object_extra')){
 			$this->delete_object_extra($object, $id);
 		}
@@ -163,54 +161,56 @@ class kissCMS extends kissMySQL{
 	public function get_meta_data($type, $oid, $key, $single = true){
 		$table = $type.'_meta';
 		if(!$this->table_exists($table)) return;
-		
+
 		if(is_object($oid)){
 			if(is_array($oid->meta) && isset($oid->meta[$key])){
 				return $oid->meta[$key];
 			}
 		}
 
-		$data = $this->get_col("SELECT meta_value FROM $table WHERE {$type}_id = $oid AND meta_key = %s", $key);
-		
+		$data = $this->get_col("SELECT meta_value FROM $table WHERE {$type}_id = %d AND meta_key = %s", $oid, $key);
+
 		if(!is_array($data)) return;
-		
+
 		foreach($data as &$entry){
 			$entry = maybe_unserialize($entry);
 		}
-		
+
 		if($single && $data){
 			$values = array_values($data);
 			return $values[0];
+		}elseif($single){
+			return null;
 		}
-		
+
 		return $data;
 	}
 
 	public function add_meta_data($type, $oid, $key, $value){
-		$table = $type.'_meta';
-		if(!$this->table_exists($table)) return;
-		
-		return $this->query("INSERT INTO {$type}_meta ({$type}_id, meta_key, meta_value) VALUES (%d, %s, %s)", $oid, $key, maybe_serialize($value));
+		return $this->update_meta_data($type, $oid, $key, $value);
 	}
 
 	public function update_meta_data($type, $oid, $key, $value, $prev_value = null){
 		$table = $type.'_meta';
 		if(!$this->table_exists($table)) return;
-		
+
 		if(!is_null($prev_value)){
-			$this->query("UPDATE $table SET meta_value = %s WHERE {$type}_id = %d AND meta_key = %s AND meta_value = %s", maybe_serialize($value), $oid, $key, $prev_value);
-		}if($this->get_var("SELECT ID FROM $table WHERE {$type}_id = $oid AND meta_key = %s", $key)){
-			$this->query("UPDATE $table SET meta_value = %s WHERE {$type}_id = %d AND meta_key = %s", maybe_serialize($value), $oid, $key);
+			return $this->query("UPDATE $table SET meta_value = %s WHERE {$type}_id = %d AND meta_key = %s AND meta_value = %s", maybe_serialize($value), $oid, $key, $prev_value);
+		}if($this->get_var("SELECT ID FROM $table WHERE {$type}_id = %d AND meta_key = %s", $oid, $key)){
+			return $this->query("UPDATE $table SET meta_value = %s WHERE {$type}_id = %d AND meta_key = %s", maybe_serialize($value), $oid, $key);
 		}else{
-			$this->add_meta_data($type, $oid, $key, $value);
+			return $this->query("INSERT INTO {$type}_meta ({$type}_id, meta_key, meta_value) VALUES (%d, %s, %s)", $oid, $key, maybe_serialize($value));
 		}
 	}
 
-	public function delete_meta_data($type, $oid, $key){
+	public function delete_meta_data($type, $oid, $key, $value = null){
 		$table = $type.'_meta';
 		if(!$this->table_exists($table)) return;
-		
-		return $this->query("DELETE FROM $table WHERE {$type}_id = $oid AND meta_key = $key");
+
+		$and = '';
+		if(!is_null($value)) $and = "AND meta_value = %s";
+
+		return $this->query("DELETE FROM $table WHERE {$type}_id = %d AND meta_key = %s $and", $oid, $key, $value);
 	}
 
 	public function get_object_field($type, $id, $field){
@@ -226,13 +226,13 @@ class kissCMS extends kissMySQL{
 
 		return $this->update($type.'s', array($field => $value), array('ID' => $id), array($format), array('%d'));
 	}
-	
+
 	private function object_relation_helper($object_id, $object_type, $target_id, $target_type, $relation = null){
 		if(isset($this->object_relationships[$target_type])){
 			$relationship = $this->object_relationships[$target_type];
 			if(is_array($relationship) && in_array($object_type, $relationship)){
 				$data = array(
-					$target_type.'_id',
+					$target_type.'_id' => $target_id,
 					'object_id' => $object_id,
 					'object_type' => $object_type
 				);
@@ -254,7 +254,7 @@ class kissCMS extends kissMySQL{
 			$data['relation'] = $relation;
 			$format[] = '%s';
 		}
-		
+
 		return array(
 			'data' => $data,
 			'format' => $format
@@ -264,10 +264,10 @@ class kissCMS extends kissMySQL{
 	public function add_object_relation($object_id, $object_type, $target_id, $target_type, $relation = null){
 		$table = $target_type.'_relationships';
 		if(!$this->table_exists($table)) return;
-		
+
 		$query = $this->object_relation_helper($object_id, $object_type, $target_id, $target_type, $relation);
-		
-		return $this->insert(
+
+		return $this->replace(
 			$table,
 			$query['data'],
 			$query['format']
@@ -275,11 +275,13 @@ class kissCMS extends kissMySQL{
 	}
 
 	public function update_object_relation($object_id, $object_type, $target_id, $target_type, $relation){
+		return $this->add_object_relation($object_id, $object_type, $target_id, $target_type, $relation);
+		/*
 		$table = $target_type.'_relationships';
 		if(!$this->table_exists($table)) return;
-		
+
 		$query = $this->object_relation_helper($object_id, $object_type, $target_id, $target_type, $relation);
-		
+
 		return $this->update(
 			$table,
 			array(
@@ -289,14 +291,15 @@ class kissCMS extends kissMySQL{
 			array('%s'),
 			$query['format']
 		);
+		*/
 	}
 
 	public function remove_object_relation($object_id, $object_type, $target_id, $target_type, $relation = null){
 		$table = $target_type.'_relationships';
 		if(!$this->table_exists($table)) return;
-		
+
 		$query = $this->object_relation_helper($object_id, $object_type, $target_id, $target_type, $relation);
-		
+
 		return $this->delete(
 			$table,
 			$query['data'],
@@ -304,23 +307,31 @@ class kissCMS extends kissMySQL{
 		);
 	}
 
-	public function get_object_relation($table, $target_id, $target_type, $relation = null, $search_frist_col = false, $fields = null){
-		$table = $table.'_relationships';
+	public function get_object_relation($object_type, $target_id, $target_type, $relation = null, $search_frist_col = false, $fields = null, $where_extra = ''){
+		$table = $object_type.'_relationships';
 		if(!$this->table_exists($table)) return;
-		
+
 		if($search_frist_col){
 			$join_type = $target_type;
-			$where_type = $table;
+			$where_type = $object_type;
 		}else{
-			$join_type = $table;
+			$join_type = $object_type;
 			$where_type = $target_type;
 		}
-		
+
 		if(is_null($fields)){
 			$fields = 'o.*';
 		}
 
-		if($relation) $where = "AND r.relation = %s";
+		$where = '';
+		if($relation){
+			$compare = '=';
+			if(is_array($relation)){
+				$compare = $relation[1];
+				$relation = $relation[0];
+			}
+			$where = "AND r.relation $compare %s";
+		}
 
 		$where_id = implode(',', (array) $target_id);
 
@@ -329,9 +340,10 @@ class kissCMS extends kissMySQL{
 				$fields
 			FROM
 				{$join_type}s AS o
-				LEFT JOIN {$table}_relationships AS r ON (o.ID = r.{$join_type}_id)
+				LEFT JOIN $table AS r ON (o.ID = r.{$join_type}_id)
 			WHERE
 				(r.{$where_type}_id IN ($where_id) $where)
+				$where_extra
 			GROUP BY
 				r.{$join_type}_id
 		", $relation);
@@ -344,78 +356,85 @@ class kissCMS extends kissMySQL{
 	 */
 
 	public function __call($name, $arguments){
+		for($i = 0; $i < 10; $i++){
+			if(!isset($arguments[$i]))
+				$arguments[$i] = null;
+		}
+
 		//Meta Data Aliases
 		if(preg_match('/^get_(\w+)_meta$/', $name, $matches)){
-			extract_args($arguments, $id, $key);
+			list($id, $key) = $arguments;
 			return $this->get_meta_data($matches[1], $id, $key);
 		}
 		if(preg_match('/^add_(\w+)_meta$/', $name, $matches)){
-			extract_args($arguments, $id, $key, $value);
+			list($id, $key, $value) = $arguments;
 			return $this->add_meta_data($matches[1], $id, $key, $value);
 		}
 		if(preg_match('/^update_(\w+)_meta$/', $name, $matches)){
-			extract_args($arguments, $id, $key, $value);
+			list($id, $key, $value) = $arguments;
 			return $this->update_meta_data($matches[1], $id, $key, $value);
 		}
 		if(preg_match('/^delete_(\w+)_meta$/', $name, $matches)){
-			extract_args($arguments, $id, $key);
+			list($id, $key) = $arguments;
 			return $this->delete_meta_data($matches[1], $id, $key);
 		}
 
 		//Object Relation Aliases
-		if(preg_match('/^add_(\w+)_to_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $object_id, $target_id, $relation);
-			extract_args($matches, $null, $object_type, $target_type);
+		if(preg_match('/^add_(\w+?)_to_(\w+)$/', $name, $matches)){
+			list($object_id, $target_id, $relation) = $arguments;
+			list($null, $object_type, $target_type) = $matches;
 			return $this->add_object_relation($object_id, $object_type, $target_id, $target_type, $relation);
 		}
-		if(preg_match('/^update_(\w+)_(?:in|of)_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $object_id, $target_id, $relation);
-			extract_args($matches, $null, $object_type, $target_type);
+		if(preg_match('/^update_(\w+?)_(?:in|of)_(\w+)$/', $name, $matches)){
+			list($object_id, $target_id, $relation) = $arguments;
+			list($null, $object_type, $target_type) = $matches;
 			return $this->update_object_relation($object_id, $object_type, $target_id, $target_type, $relation);
 		}
-		if(preg_match('/^remove_(\w+)_from_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $object_id, $target_id, $relation);
-			extract_args($matches, $null, $object_type, $target_type);
+		if(preg_match('/^remove_(\w+?)_from_(\w+)$/', $name, $matches)){
+			list($object_id, $target_id, $relation) = $arguments;
+			list($null, $object_type, $target_type) = $matches;
 			return $this->remove_object_relation($object_id, $object_type, $target_id, $target_type, $relation);
 		}
-		if(preg_match('/^get_(\w+)s_from_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $target_id, $relation, $fields);
-			extract_args($matches, $null, $target_type, $table);
-			return $this->get_object_relation($table, $target_id, $target_type, $relation, true);
+		if(preg_match('/^get_(\w+?)s_from_(\w+)$/', $name, $matches)){
+			list($target_id, $relation, $fields, $where_extra) = $arguments;
+			list($null, $target_type, $table) = $matches;
+			return $this->get_object_relation($table, $target_id, $target_type, $relation, true, $fields, $where_extra);
 		}
-		if(preg_match('/^get_(\w+)s_for_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $target_id, $relation, $fields);
-			extract_args($matches, $null, $table, $target_type);
-			return $this->get_object_relation($table, $target_id, $target_type, $relation);
+		if(preg_match('/^get_(\w+?)s_for_(\w+)$/', $name, $matches)){
+			list($target_id, $relation, $fields, $where_extra) = $arguments;
+			list(, $table, $target_type) = $matches;
+			return $this->get_object_relation($table, $target_id, $target_type, $relation, false, $fields, $where_extra);
+		}
+
+		//Object by Aliases
+		if(preg_match('/^get_(\w+?)_by_(\w+)$/', $name, $matches)){
+			list($id, $fields, $meta) = $arguments;
+			list($null, $type, $field) = $matches;
+			return $this->get_object_by($type, $field, $id, $fields, $meta);
+		}
+		if(preg_match('/^get_(\w+?)_by$/', $name, $matches)){
+			list($field, $id, $fields, $meta) = $arguments;
+			return $this->get_object_by($matches[1], $field, $id, $fields, $meta);
 		}
 
 		//Object Field Aliass
 		if(preg_match('/^(?:get|is)_(\w+?)_(\w+)$/', $name, $matches)){
-			extract_args($matches, $null, $type, $field);
+			list($null, $type, $field) = $matches;
 			return $this->get_object_field($type, $arguments[0], $field);
 		}
 		if(preg_match('/^update_(\w+?)_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $id, $value);
-			extract_args($matches, $null, $type, $field);
+			list($id, $value) = $arguments;
+			list($null, $type, $field) = $matches;
 			return $this->update_object_field($type, $id, $field, $value);
 		}
 
 		//Object Aliases
-		if(preg_match('/^get_(\w+)_by_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $id, $fields, $meta);
-			extract_args($matches, $null, $type, $field);
-			return $this->get_object_by($type, $field, $id, $fields, $meta);
-		}
-		if(preg_match('/^get_(\w+)_by$/', $name, $matches)){
-			extract_args($arguments, $field, $id, $fields, $meta);
-			return $this->get_object_by($matches[1], $field, $id, $fields, $meta);
-		}
 		if(preg_match('/^get_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $id, $fields, $meta);
+			list($id, $fields, $meta) = $arguments;
 			return $this->get_object($matches[1], $id, $fields, $meta);
 		}
 		if(preg_match('/^edit_(\w+)$/', $name, $matches)){
-			extract_args($arguments, $id, $changes);
+			list($id, $changes) = $arguments;
 			return $this->edit_object($matches[1], $id, $changes);
 		}
 		if(preg_match('/^delete_(\w+)$/', $name, $matches)){
@@ -431,28 +450,6 @@ class kissCMS extends kissMySQL{
  * Utility Functions
  * =================
  */
-
-function extract_args(
-	$arguments,
-	&$arg0 = null,
-	&$arg1 = null,
-	&$arg2 = null,
-	&$arg3 = null,
-	&$arg4 = null,
-	&$arg5 = null,
-	&$arg6 = null,
-	&$arg7 = null,
-	&$arg8 = null,
-	&$arg9 = null
-){
-	$i = 10;
-
-	for($a = 0; $a < $i; $a++){
-		if(!isset($arguments[$a])) break;
-		$var = "arg$a";
-		$$var = $arguments[$a];
-	}
-}
 
 function is_serialized($data){
 	if(! is_string($data))
