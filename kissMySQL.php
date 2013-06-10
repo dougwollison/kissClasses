@@ -110,7 +110,7 @@ class kissMySQL{
 			//Otherwise, Check if the output type is the last arg, if so, pop it off to $output
 			if(in_array($args[0], array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N))){
 				$output = array_shift($args);
-			}elseif(in_array(end($args), array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N)))
+			}elseif(in_array(end($args), array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N))){
 				$output = array_pop($args);
 			}
 
