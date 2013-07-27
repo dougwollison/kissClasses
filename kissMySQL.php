@@ -137,9 +137,17 @@ class kissMySQL{
 		$this->last_result 	 	= array();
 	}
 
+	public function get_last(){
+		return sprintf('Query: "%s" Error: "%s"', $this->last_query, $this->last_error);
+	}
+
+	public function print_last(){
+		echo $this->get_last();
+	}
+
 	public function get_error(){
 		if($this->last_error)
-			return sprintf('Query: "%s" Error: "%s"', $this->last_query, $this->last_error);
+			return $this->get_last();
 	}
 
 	public function print_error(){
