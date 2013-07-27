@@ -199,7 +199,7 @@ class kissMySQL{
 	}
 
 	private function _insert_replace_helper($table, $data, $format = null, $action = 'INSERT'){
-		if(!in_array(strtoupper($type), array('REPLACE', 'INSERT')))
+		if(!in_array(strtoupper($action), array('REPLACE', 'INSERT')))
 			return false;
 
 		$formats = $format = (array) $format;
@@ -216,7 +216,7 @@ class kissMySQL{
 			$formatted_fields[] = $form;
 		}
 
-		$query = "$type INTO `$table` (`".implode('`,`', $fields)."`) VALUES ('".implode("','", $formatted_fields)."')";
+		$query = "$action INTO `$table` (`".implode('`,`', $fields)."`) VALUES ('".implode("','", $formatted_fields)."')";
 		return $this->query($query, $data);
 	}
 
