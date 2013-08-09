@@ -12,7 +12,7 @@ define('ARRAY_A', md5('ARRAY_A'.time()), true);
 define('ARRAY_N', md5('ARRAY_N'.time()), true);
 
 class kissMySQL{
-  public $ready;
+	public $ready;
 	public $last_query;
 	public $last_error;
 	public $rows_affected;
@@ -108,9 +108,10 @@ class kissMySQL{
 
 			//Check if the output type is the first arg, if so, shift it off to $output
 			//Otherwise, Check if the output type is the last arg, if so, pop it off to $output
-			if(in_array($args[0], array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N))){
+			$outputs = array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N);
+			if(in_array($args[0], $outputs, true)){
 				$output = array_shift($args);
-			}elseif(in_array(end($args), array(OBJECT, OBJECT_K, ARRAY_A, ARRAY_N))){
+			}elseif(in_array(end($args), $outputs, true)){
 				$output = array_pop($args);
 			}
 
@@ -157,7 +158,8 @@ class kissMySQL{
 	public function query($query){
 		if(!$this->ready) return false;
 
-		$this->auto_prepare($query, func_get_args());
+		if(func_num_args() > 1)
+			$this->auto_prepare($query, func_get_args());
 
 		$return_val = 0;
 
@@ -293,7 +295,8 @@ class kissMySQL{
 	}
 
 	public function get_results($query){
-		$this->auto_prepare($query, func_get_args(), $output);
+		if(func_num_args() > 1)
+			$this->auto_prepare($query, func_get_args(), $output);
 
 		if(!$output) $output = OBJECT;
 
@@ -335,7 +338,8 @@ class kissMySQL{
 	}
 
 	public function get_row($query){
-		$this->auto_prepare($query, func_get_args(), $output);
+		if(func_num_args() > 1)
+			$this->auto_prepare($query, func_get_args(), $output);
 
 		return $this->get_row_y($query, $output);
 	}
@@ -357,7 +361,8 @@ class kissMySQL{
 	}
 
 	public function get_col($query = null){
-		$this->auto_prepare($query, func_get_args());
+		if(func_num_args() > 1)
+			$this->auto_prepare($query, func_get_args());
 
 		return $this->get_col_x($query);
 	}
@@ -377,7 +382,8 @@ class kissMySQL{
 	}
 
 	public function get_var($query = null){
-		$this->auto_prepare($query, func_get_args());
+		if(func_num_args() > 1)
+			$this->auto_prepare($query, func_get_args());
 
 		return $this->get_var_x_y($query);
 	}
